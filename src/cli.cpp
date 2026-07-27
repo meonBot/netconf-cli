@@ -12,6 +12,7 @@
 #include <optional>
 #include <replxx.hxx>
 #include <sstream>
+#include <thread>
 #include "NETCONF_CLI_VERSION.h"
 #include "interpreter.hpp"
 #include "proxy_datastore.hpp"
@@ -68,16 +69,6 @@ Options:
 #include "cli-netconf.hpp"
 #include "netconf_access.hpp"
 #define PROGRAM_NAME "netconf-cli"
-// FIXME: this should be replaced by C++20 std::jthread at some point
-struct PoorMansJThread {
-    ~PoorMansJThread()
-    {
-        if (thread.joinable()) {
-            thread.join();
-        }
-    }
-    std::thread thread;
-};
 #else
 #error "Unknown CLI backend"
 #endif
@@ -179,7 +170,7 @@ int main(int argc, char* argv[])
     }
 
     SshProcess process;
-    PoorMansJThread processWatcher;
+    std::jthread processWatcher;
     std::shared_ptr<NetconfAccess> datastore;
 
     if (args.at("--socket").asBool()) {
@@ -192,7 +183,7 @@ int main(int argc, char* argv[])
     } else {
         try {
             process = sshProcess(args.at("<host>").asString(), args.at("-p").asString());
-            processWatcher.thread = std::thread{std::thread{[&process, &lineEditor, &backendReturnCode] () {
+            processWatcher = std::jthread{[&process, &lineEditor, &backendReturnCode] () {
                 process.process.wait();
                 backendReturnCode = process.process.exit_code();
                 // CTRL-U clears from the cursor to the start of the line
@@ -201,7 +192,7 @@ int main(int argc, char* argv[])
                 lineEditor.emulate_key_press(replxx::Replxx::KEY::control('U'));
                 lineEditor.emulate_key_press(replxx::Replxx::KEY::control('K'));
                 lineEditor.emulate_key_press(replxx::Replxx::KEY::control('D'));
-            }}};
+            }};
             datastore = std::make_shared<NetconfAccess>(process.std_out.native_source(), process.std_in.native_sink());
         } catch (std::runtime_error& ex) {
             std::cerr << "SSH connection failed: " << ex.what() << std::endl;
