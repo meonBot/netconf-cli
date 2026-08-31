@@ -460,6 +460,7 @@ yang::NodeTypes impl_nodeType(const libyang::SchemaNode& node)
     case libyang::NodeType::Notification:
         return yang::NodeTypes::Notification;
     case libyang::NodeType::AnyXML:
+    case libyang::NodeType::AnyData:
         return yang::NodeTypes::AnyXml;
     case libyang::NodeType::Leaflist:
         return yang::NodeTypes::LeafList;
